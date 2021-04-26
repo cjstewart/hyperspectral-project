@@ -55,7 +55,8 @@ def find_files(data_dir_path):
 # Much more better!
 def descend_obj(obj,sep='\t'):
     """
-    Iterate through groups in a HDF5 file and prints the groups and datasets names and datasets attributes
+    Iterate through groups in a HDF5 file and prints the groups and datasets
+    names and datasets attributes
     """
     if type(obj) in [h5py._hl.group.Group,h5py._hl.files.File]:
         for key in obj.keys():
@@ -143,11 +144,13 @@ def h5data2array(data_file_path, clamp_values=True):
     metadata_dict['spatial extent'] = refl_data.attrs['Spatial_Extent_meters']
 
     # Extract projection information
-    metadata_dict['projection'] = refl_obj['Metadata']['Coordinate_System']['Proj4'][...]
-    metadata_dict['epsg'] = int(refl_obj['Metadata']['Coordinate_System']['EPSG Code'][...])
+    metadata_dict['Proj4'] = refl_obj['Metadata']['Coordinate_System']['Proj4'][...]
+    metadata_dict['EPSG Code'] = refl_obj['Metadata']['Coordinate_System']['EPSG Code'][...]
+    metadata_dict['Map_Info'] = refl_obj['Metadata']['Coordinate_System']['Map_Info'][...]
+    metadata_dict['Coordinate_System_String'] = refl_obj['Metadata']['Coordinate_System']['Coordinate_System_String'][()] # Coordinate System string
 
     # Extract map information: spatial extent & resolution (pixel size)
-    mapInfo = refl_obj['Metadata']['Coordinate_System']['Map_Info'][...]
+    # mapInfo = refl_obj['Metadata']['Coordinate_System']['Map_Info'][...] # I don't think this is used... remove later if not
 
     hdf5_file.close # close file
 

@@ -30,6 +30,12 @@ pd.set_option('display.max_columns', None)
 #import warnings
 #warnings.filterwarnings('ignore')
 
+# error logging
+
+
+import logging
+downSampler_logger = logging.getLogger(__name__)
+
 # ----------------------------------------------------------------------------------------------------------------------------------------
 
 def find_files(data_dir_path):
@@ -37,6 +43,7 @@ def find_files(data_dir_path):
     This function takes in a path to a data directory, walks the directory and
     returns a dictionary of the filenames and paths of all the data files.
     """
+    downSampler_logger.debug("find_files function called")  # logging
 
     # get all the h5 data filenames and paths
     file_dict = {} # to store file:path pairs
@@ -58,6 +65,8 @@ def descend_obj(obj,sep='\t'):
     Iterate through groups in a HDF5 file and prints the groups and datasets
     names and datasets attributes
     """
+    downSampler_logger.debug("descend_obj function called") # logging
+
     if type(obj) in [h5py._hl.group.Group,h5py._hl.files.File]:
         for key in obj.keys():
             print(sep,'-',key,':',obj[key])
@@ -72,6 +81,8 @@ def h5dump(path,group='/'):
 
     group: you can give a specific group, defaults to the root group
     """
+    downSampler_logger.debug("h5dump function called") # logging
+
     with h5py.File(path,'r') as f:
          descend_obj(f[group])
 
@@ -105,6 +116,8 @@ def h5data2array(data_file_path, clamp_values=True):
     refl_clean, wavelength_array, FWHM_array, metadata = h5data2array("NEON_D16_ABBY_DP3_552000_5071000_reflectance.h5")
 
     """
+    downSampler_logger.debug("h5data2array function called") # logging
+
 
     hdf5_file = h5py.File(data_file_path,'r') # open file
     #Get the site name
@@ -173,6 +186,8 @@ def array2h5data(refl_array, wavelength_array, FWHM_array, metadata_dict, filena
     Takes in a 3-D reflectance array, an array of band centre wavelengths, FWHM array,
     and an additional metadata dictionary and generates a HDF5 file with the given filename.
     """
+    downSampler_logger.debug("array2h5data function called") # logging
+
 
     # scale the reflectance data up by the original reflectance factor to save disk space
     scale_fac = metadata_dict['reflectance scale factor']
@@ -231,10 +246,15 @@ def reband_spectral_array(spect_array, input_bandcentres_array, output_bandcentr
     refl_array_new = reband_spec(spect_array, input_bandcentres_array, output_bandcentres_array)
 
     """
+    #downSampler_logger.debug("reband_spectral_array function called") # logging
+
+
     if len(input_bandcentres_array) == len(spect_array): # error checking
+        downSampler_logger.debug("reband_spectral_array returns: {}".format(np.interp(x=output_bandcentres_array, xp=input_bandcentres_array, fp=spect_array, left=None, right=None, period=None))) # logging
         return np.interp(x=output_bandcentres_array, xp=input_bandcentres_array, fp=spect_array, left=None, right=None, period=None)
     else:
         print("Error: input spectral array must be same length as input band centres array")
+        return []
 
 
 # ----------------------------------------------------------------------------------------------------------------------------------------
@@ -245,6 +265,8 @@ def band_widths(bandcentres_array):
     """
     Generates band widths from given band centre wavelengths
     """
+    downSampler_logger.debug("band_widths function called") # logging
+
     bandwidths_array = np.empty(len(bandcentres_array)) # create empty array to store bands widths
 
     for i in range(0,len(bandcentres_array)-1): # calculate band width as difference between band centres (approximation)
@@ -295,25 +317,36 @@ def downSample_reband_array(img_array, GSD_input, GSD_output, input_bandcentres_
     img_array_ds = downSample_array(img_array, 1, 2) # downsample image by factor of 2
 
     """
+    downSampler_logger.debug("downSample_reband_array function called") # logging
 
     downsample_factor = max(int(round(GSD_output/GSD_input)),1) # calculate the downsampling factor - only integers!
     rescale_factor = float(downsample_factor)
+    downSampler_logger.debug("GSD_output passed: {}, GSD_input passed: {}, rescale_factor calculated: {}".format(GSD_output, GSD_input,rescale_factor)) # logging
+
     img_array_ds = skimage.measure.block_reduce(img_array[:, :, :],
                                              block_size=(downsample_factor, downsample_factor, 1),
                                              func=np.mean) # downsample image array
+    downSampler_logger.debug("img_array shape passed: {}, img_array_ds shape downsampled: {}".format(img_array.shape, img_array_ds.shape)) # logging
+    downSampler_logger.debug("img_array: {}, img_array_ds downsampled: {}".format(img_array, img_array_ds)) # logging
 
     # create empty array to store the rebanded spectral arrays
-    rebanded_array = np.empty((img_array_ds.shape[0], img_array_ds.shape[1], len(output_bandcentres_array)))
+    rebanded_array = np.zeros((img_array_ds.shape[0], img_array_ds.shape[1], len(output_bandcentres_array)))
+    downSampler_logger.debug("Should be empty - rebanded_array shape: {}".format(rebanded_array.shape)) # logging
+    downSampler_logger.debug("Should be empty - rebanded_array: {}".format(rebanded_array)) # logging
+
 
     # loop through all spatial pixels and reband the spectral component of each one
     for x in range(0,img_array_ds.shape[0]): # x dimension
         for y in range(0,img_array_ds.shape[1]): # y dimension
 
-            rebanded_array[x, y, :] = reband_spectral_array(img_array_ds[x, y, :],
+            downSampler_logger.debug("Passed to reband_spectral_array - img_array_ds[x, y, :]: {}, \ninput_bandcentres_array: {}, \noutput_bandcentres_array: {}".format(img_array_ds[x, y, :], input_bandcentres_array, output_bandcentres_array)) # logging
+            rebanded_array[x, y, :] = np.round_(reband_spectral_array(img_array_ds[x, y, :],
                                                             input_bandcentres_array,
-                                                            output_bandcentres_array) # build up empty array with rebanded arrays
+                                                            output_bandcentres_array),4) # build up empty array with rebanded arrays
 
+    downSampler_logger.debug("Should be full now - rebanded_array shape: {}, rebanded_array: {}".format(rebanded_array.shape, rebanded_array)) # logging
     # upscale image back to original input image size (interpolating pixels in between)
+    downSampler_logger.debug("Rescale of the rebanded_array shape: {}, rescaled rebanded_array: {}".format(skimage.transform.rescale(rebanded_array,(rescale_factor,rescale_factor,1.0)).shape, skimage.transform.rescale(rebanded_array,(rescale_factor,rescale_factor,1.0)))) # logging
     return skimage.transform.rescale(rebanded_array,(rescale_factor,rescale_factor,1.0)) # scale back up to original size (interpolates)
 
 

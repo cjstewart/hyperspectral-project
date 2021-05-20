@@ -31,8 +31,6 @@ pd.set_option('display.max_columns', None)
 #warnings.filterwarnings('ignore')
 
 # error logging
-
-
 import logging
 downSampler_logger = logging.getLogger(__name__)
 
@@ -217,6 +215,91 @@ def array2h5data(refl_array, wavelength_array, FWHM_array, metadata_dict, filena
     FWHM_dset.attrs['Description'] = 'Full width half maximum of reflectance bands.'
     FWHM_dset.attrs['Units'] = 'nanometers'
 
+
+    hf.close() # close file to save and write to disk
+
+
+# ----------------------------------------------------------------------------------------------------------------------------------------
+
+
+def array2h5raster(refl_array, wavelength_array, FWHM_array, metadata_dict, filename_output):
+    """
+    Takes in a 3-D reflectance array, an array of band centre wavelengths, FWHM array,
+    and an additional metadata dictionary and generates a HDF5 file with the given filename.
+    Each band of reflectance data is written to its own hdf5 dataset.
+    """
+
+    # scale the reflectance data up by the original reflectance factor to save disk space
+    scale_fac = metadata_dict['reflectance scale factor']
+    refl_array = refl_array*scale_fac
+    wavelength_array = np.array(wavelength_array)*1000 # convert to nm
+    FWHM_array = np.array(FWHM_array)*1000
+
+    hf = h5py.File(filename_output, 'w') # create hdf5 file
+    g1 = hf.create_group('Reflectance') # create main group
+    g2 = hf.create_group('Reflectance/Metadata') # group for metadata
+
+    # datasets
+    # ------------------------------------------------------------------------------
+    # reflectance data
+
+    for band in range(refl_array.shape[2]):
+        #print("band",band)
+        band_name = 'Band_' + str(band+1).zfill(3) # make into e.g. 001 or 013 instead of 1 or 13 etc.
+        print(band_name)
+        refl_dset = g1.create_dataset(band_name,data=refl_array[:,:,band], dtype='i') # dataset for each band of reflectance data
+        refl_dset.attrs['Description'] =  'Atmospherically corrected reflectance.'
+        refl_dset.attrs['Wavelength'] = wavelength_array[band]# wavelength in nm
+        refl_dset.attrs['Wavelength_units'] = 'nm' # wavelength units
+        refl_dset.attrs['data ignore value'] = metadata_dict['data ignore value']
+        refl_dset.attrs['reflectance scale factor'] = metadata_dict['reflectance scale factor']
+        refl_dset.attrs['Spatial_Resolution_X_Y'] = metadata_dict['Spatial_Resolution_X_Y']
+        refl_dset.attrs['spatial extent'] = metadata_dict['spatial extent']
+
+    # wavelength data
+    wav_dset = g2.create_dataset('Wavelength',data=wavelength_array) # band centre wavelength data
+    wav_dset.attrs['Description'] = 'Central wavelength of the reflectance bands.'
+    wav_dset.attrs['Units'] = 'nanometers'
+
+    # FWHM data
+    FWHM_dset = g2.create_dataset('FWHM',data=FWHM_array) # FWHM data
+    FWHM_dset.attrs['Description'] = 'Full width half maximum of reflectance bands.'
+    FWHM_dset.attrs['Units'] = 'nanometers'
+
+    # coordinates data
+    g2_1 = g2.create_group('Coordinate_System') # group for metadata
+    Proj4_dset = g2_1.create_dataset('Proj4',data=metadata_dict['Proj4']) # band Proj4 data
+    EPSG_dset = g2_1.create_dataset('EPSG Code',data=metadata_dict['EPSG Code']) # EPSG Code
+    map_dset = g2_1.create_dataset('Map_Info',data=metadata_dict['Map_Info']) # Map Info
+    coor_dset = g2_1.create_dataset('Coordinate_System_String',data=metadata_dict['Coordinate_System_String']) # coordinate system
+    map_dset.attrs['Description'] = ("List of geographic information in the following order:\n"
+                                    "   - Projection name\n"
+                                    "   - Reference (tie point) pixel x location (in file coordinates)\n"
+                                    "   - Reference (tie point) pixel y location (in file coordinates)\n"
+                                    "   - Pixel easting\n"
+                                    "   - Pixel northing\n"
+                                    "   - x pixel size\n"
+                                    "   - y pixel size\n"
+                                    "   - Projection zone (UTM only)\n"
+                                    "   - North or South (UTM only)\n"
+                                    "   - Datum\n"
+                                    "   - Units\n"
+                                    "   - Rotation Angle\n"
+                                    )
+
+    #     - Description : List of geographic information in the following order:
+    #         - Projection name
+    #         - Reference (tie point) pixel x location (in file coordinates)
+    #         - Reference (tie point) pixel y location (in file coordinates)
+    #         - Pixel easting
+    #         - Pixel northing
+    #         - x pixel size
+    #         - y pixel size
+    #         - Projection zone (UTM only)
+    #         - North or South (UTM only)
+    #         - Datum
+    #         - Units
+    #         - Rotation Angle
 
     hf.close() # close file to save and write to disk
 
@@ -414,9 +497,9 @@ def pipeline(data_dir_path, output_data_path, desired_GSD = 4,
     This script implements the image downsampling and rebanding pipeline.
 
     """
-    # print("This is my file to test Python's execution methods.")
-    # print("The variable __name__ tells me which context this file is running in.")
-    # print("The value of __name__ is:", repr(__name__))
+    print("This is my file to test Python's execution methods.")
+    print("The variable __name__ tells me which context this file is running in.")
+    print("The value of __name__ is:", repr(__name__))
 
 
     ## set up our desired bands and GSD parameters, as well as our input and output files directory
@@ -468,4 +551,4 @@ def pipeline(data_dir_path, output_data_path, desired_GSD = 4,
 
 
 if __name__ == "__main__":
-    pipeline()
+    #pipeline()

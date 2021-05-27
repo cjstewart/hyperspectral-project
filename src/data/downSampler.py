@@ -1,5 +1,3 @@
-
-
 # libraries
 # data
 import pandas as pd
@@ -30,19 +28,21 @@ pd.set_option('display.max_columns', None)
 #import warnings
 #warnings.filterwarnings('ignore')
 
+# image manipulation
+from osgeo import gdal
+gdal.UseExceptions()
+
 # error logging
 import logging
 downSampler_logger = logging.getLogger(__name__)
 
 # ----------------------------------------------------------------------------------------------------------------------------------------
-
 def find_files(data_dir_path):
     """
     This function takes in a path to a data directory, walks the directory and
     returns a dictionary of the filenames and paths of all the data files.
     """
     downSampler_logger.debug("find_files function called")  # logging
-
     # get all the h5 data filenames and paths
     file_dict = {} # to store file:path pairs
     print('Finding data files...')
@@ -111,7 +111,7 @@ def h5data2array(data_file_path, clamp_values=True):
     --------
     Example Execution:
     --------
-    refl_clean, wavelength_array, FWHM_array, metadata = h5data2array("NEON_D16_ABBY_DP3_552000_5071000_reflectance.h5")
+    refl_clean, wavelength_array, FWHM_array, metadata = h5data2array("myHDF5file.h5")
 
     """
     downSampler_logger.debug("h5data2array function called") # logging
@@ -228,6 +228,7 @@ def array2h5raster(refl_array, wavelength_array, FWHM_array, metadata_dict, file
     and an additional metadata dictionary and generates a HDF5 file with the given filename.
     Each band of reflectance data is written to its own hdf5 dataset.
     """
+    downSampler_logger.debug("array2h5raster function called") # logging
 
     # scale the reflectance data up by the original reflectance factor to save disk space
     scale_fac = metadata_dict['reflectance scale factor']
@@ -246,7 +247,6 @@ def array2h5raster(refl_array, wavelength_array, FWHM_array, metadata_dict, file
     for band in range(refl_array.shape[2]):
         #print("band",band)
         band_name = 'Band_' + str(band+1).zfill(3) # make into e.g. 001 or 013 instead of 1 or 13 etc.
-        print(band_name)
         refl_dset = g1.create_dataset(band_name,data=refl_array[:,:,band], dtype='i') # dataset for each band of reflectance data
         refl_dset.attrs['Description'] =  'Atmospherically corrected reflectance.'
         refl_dset.attrs['Wavelength'] = wavelength_array[band]# wavelength in nm
@@ -307,11 +307,73 @@ def array2h5raster(refl_array, wavelength_array, FWHM_array, metadata_dict, file
 # ----------------------------------------------------------------------------------------------------------------------------------------
 
 
+def array2gtiff_raster(refl_array, wavelength_array, FWHM_array, metadata_dict, pixelWidth, pixelHeight, file_path, filename_prefix="WYVERN_DS"):
+    """
+    Takes in a 3-D reflectance array, an array of band centre wavelengths, FWHM array,
+    and an additional metadata dictionary and generates a HDF5 file with the given filename.
+    Each band of reflectance data is written to its own geotiff image.
+
+    Parameters
+    -----------
+    refl_array : 3-D array_like
+                Array of image spectral reflectance values that will be used in the raster layers
+
+    wavelength_array : 1-D array_like
+                Array of the band centre wavelengths for the given spectral reflectance array
+
+    FWHM_array : 1-D array_like
+                Array of the band widths
+
+
+    --------
+    Example Execution:
+    --------
+    array2gtiff_raster(refl_array, wavelength_array, FWHM_array, metadata_dict, filename_output, pixelWidth, pixelHeight)
+
+    """
+
+    # set up parameters
+    rows = refl_array.shape[0] # rows of image
+    cols = refl_array.shape[1] # columns of image
+    num_bands = refl_array.shape[2] # number of bands
+    NO_DATA = metadata_dict['data ignore value'] # -9999
+    dtype = gdal.GDT_Float32
+
+    coords_utm = [] # input UTM coordinates
+    coords_utm.append((metadata_dict['spatial extent'][0],metadata_dict['spatial extent'][2]))
+    coords_utm.append((metadata_dict['spatial extent'][0],metadata_dict['spatial extent'][3]))
+    coords_utm.append((metadata_dict['spatial extent'][1],metadata_dict['spatial extent'][3]))
+    coords_utm.append((metadata_dict['spatial extent'][1],metadata_dict['spatial extent'][2]))
+
+    driver = gdal.GetDriverByName('GTiff')
+
+    # write out raster bands
+    for band in range(num_bands):
+        band_name = filename_prefix + '_band_' + str(band+1).zfill(3) + '.tif' # make into e.g. 001 or 013 instead of 1 or 13 etc.
+        full_path = str(os.path.join(file_path, band_name)) # gdal can't seem to handle filepaths
+
+        out_raster = driver.Create(full_path, cols, rows, 1, dtype)
+        projection = 'EPSG:' + metadata_dict['EPSG Code'].item().decode('UTF-8') # UTM coordinate system
+        out_raster.SetProjection(projection) # apply CRS
+        geo_transform = (coords_utm[1][0], pixelWidth, 0, coords_utm[1][1], 0, -pixelHeight) # geo_transform = (x top left, x cell size, x rotation, y top left, y rotation, negative y cell size)
+        out_raster.SetGeoTransform(geo_transform)
+
+        outband = out_raster.GetRasterBand(1)
+        outband.WriteArray(refl_array[:,:,band]) # write reflectance data to band
+        outband.SetNoDataValue(NO_DATA)
+        outband.FlushCache() # save to disk
+        outband = None # free up memory
+        out_raster = None
+
+
+# ----------------------------------------------------------------------------------------------------------------------------------------
+
+
 def reband_spectral_array(spect_array, input_bandcentres_array, output_bandcentres_array):
     """
     Takes in both a 1D spectral array and a input array of band centres and then returns the linearly interpolated
     reflectance values of the desired output bands.
-    NOTE: input band centre wavelengths are all in nm units
+    WARNING: input and output band centre wavelengths are all in nm units!!
 
     Parameters
     -----------
@@ -413,6 +475,7 @@ def downSample_reband_array(img_array, GSD_input, GSD_output, input_bandcentres_
     downSampler_logger.debug("img_array: {}, img_array_ds downsampled: {}".format(img_array, img_array_ds)) # logging
 
     # create empty array to store the rebanded spectral arrays
+    output_bandcentres_array = np.array(output_bandcentres_array)*1000 # convert to nm
     rebanded_array = np.zeros((img_array_ds.shape[0], img_array_ds.shape[1], len(output_bandcentres_array)))
     downSampler_logger.debug("Should be empty - rebanded_array shape: {}".format(rebanded_array.shape)) # logging
     downSampler_logger.debug("Should be empty - rebanded_array: {}".format(rebanded_array)) # logging
@@ -423,14 +486,14 @@ def downSample_reband_array(img_array, GSD_input, GSD_output, input_bandcentres_
         for y in range(0,img_array_ds.shape[1]): # y dimension
 
             downSampler_logger.debug("Passed to reband_spectral_array - img_array_ds[x, y, :]: {}, \ninput_bandcentres_array: {}, \noutput_bandcentres_array: {}".format(img_array_ds[x, y, :], input_bandcentres_array, output_bandcentres_array)) # logging
-            rebanded_array[x, y, :] = np.round_(reband_spectral_array(img_array_ds[x, y, :],
+            rebanded_array[x, y, :] = reband_spectral_array(img_array_ds[x, y, :],
                                                             input_bandcentres_array,
-                                                            output_bandcentres_array),4) # build up empty array with rebanded arrays
+                                                            output_bandcentres_array) # build up empty array with rebanded arrays
 
     downSampler_logger.debug("Should be full now - rebanded_array shape: {}, rebanded_array: {}".format(rebanded_array.shape, rebanded_array)) # logging
     # upscale image back to original input image size (interpolating pixels in between)
     downSampler_logger.debug("Rescale of the rebanded_array shape: {}, rescaled rebanded_array: {}".format(skimage.transform.rescale(rebanded_array,(rescale_factor,rescale_factor,1.0)).shape, skimage.transform.rescale(rebanded_array,(rescale_factor,rescale_factor,1.0)))) # logging
-    return skimage.transform.rescale(rebanded_array,(rescale_factor,rescale_factor,1.0)) # scale back up to original size (interpolates)
+    return np.round(skimage.transform.rescale(rebanded_array,(rescale_factor,rescale_factor,1.0)),4) # scale back up to original size (interpolates)
 
 
 # ----------------------------------------------------------------------------------------------------------------------------------------
@@ -497,9 +560,9 @@ def pipeline(data_dir_path, output_data_path, desired_GSD = 4,
     This script implements the image downsampling and rebanding pipeline.
 
     """
-    print("This is my file to test Python's execution methods.")
-    print("The variable __name__ tells me which context this file is running in.")
-    print("The value of __name__ is:", repr(__name__))
+    # print("This is my file to test Python's execution methods.")
+    # print("The variable __name__ tells me which context this file is running in.")
+    # print("The value of __name__ is:", repr(__name__))
 
 
     ## set up our desired bands and GSD parameters, as well as our input and output files directory
@@ -551,4 +614,5 @@ def pipeline(data_dir_path, output_data_path, desired_GSD = 4,
 
 
 if __name__ == "__main__":
+    print("The value of __name__ is:", repr(__name__))
     #pipeline()

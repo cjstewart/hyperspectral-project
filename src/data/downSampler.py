@@ -4,6 +4,9 @@ import pandas as pd
 import numpy as np
 import h5py
 from PIL import Image
+import json
+import pystac
+from pystac.extensions.eo import Band
 
 # plotting
 import matplotlib as mpl
@@ -19,6 +22,10 @@ import skimage.transform
 import sys
 import os
 from pathlib import Path
+import datetime
+import random
+import string
+import math
 
 # dataframe options
 pd.set_option('display.max_columns', None)
@@ -31,6 +38,10 @@ pd.set_option('display.max_columns', None)
 # image manipulation
 from osgeo import gdal
 gdal.UseExceptions()
+from shapely.geometry import Polygon, mapping
+from pyproj import CRS
+from pyproj import Transformer
+
 
 # error logging
 import logging
@@ -463,10 +474,11 @@ def downSample_reband_array(img_array, GSD_input, GSD_output, input_bandcentres_
 
     """
     downSampler_logger.debug("downSample_reband_array function called") # logging
+    downSampler_logger.debug("GSD_output passed: {}, GSD_input passed: {}".format(GSD_output, GSD_input)) # logging
 
-    downsample_factor = max(int(round(GSD_output/GSD_input)),1) # calculate the downsampling factor - only integers!
+    downsample_factor = max(int(math.ceil(GSD_output/GSD_input)),1) # calculate the downsampling factor - only integers!
     rescale_factor = float(downsample_factor)
-    downSampler_logger.debug("GSD_output passed: {}, GSD_input passed: {}, rescale_factor calculated: {}".format(GSD_output, GSD_input,rescale_factor)) # logging
+    downSampler_logger.debug("Rescale_factor calculated: {}".format(rescale_factor)) # logging
 
     img_array_ds = skimage.measure.block_reduce(img_array[:, :, :],
                                              block_size=(downsample_factor, downsample_factor, 1),
@@ -549,12 +561,245 @@ def toRGB(refl_array, filename_output, mode=1):
     im.save(filename_output) # save file to .png
     #im.show()
 
+# ----------------------------------------------------------------------------------------------------------------------------------------
+
+def rand_string(length):
+    '''
+    Generates a string of random characters of the passed in length
+    '''
+    # from here: https://www.askpython.com/python/examples/generate-random-strings-in-python
+    return ''.join(random.SystemRandom().choice(string.ascii_letters + string.digits) for _ in range(length))
+
+# ----------------------------------------------------------------------------------------------------------------------------------------
+
+
+def metadata2geojsonSTAC(refl_array, wavelength_array, FWHM_array, metadata_dict, common_band_names, timestamp, start_timestamp, end_timestamp, file_path, filename_prefix="WYVERN_DS"):
+    #resamp_refl_array, desired_band_centres, rebanded_FWHM_array, resamp_metadata_dict, common_band_names, timestamp, start_timestamp, end_timestamp, output_dir, filename_prefix
+
+    """
+    Takes in a 3-D reflectance array, an array of band centre wavelengths, FWHM array,
+    and an additional metadata dictionary and generates a STAC metadata with the given filename.
+    Each band of reflectance data is written to its own geotiff image.
+
+    Parameters
+    -----------
+    xxxxx : 3-D array_like
+                Array of image spectral reflectance values that will be used in the raster layers
+
+    xxxxx : 1-D array_like
+                Array of the band centre wavelengths for the given spectral reflectance array
+
+    xxxxxxx : 1-D array_like
+                Array of the band widths
+
+
+    --------
+    Example Execution:
+    --------
+    writeMetadata_STAC(refl_array, wavelength_array, FWHM_array, metadata_dict, filename_output, pixelWidth, pixelHeight)
+
+    """
+
+    # file_path = Path(r"..\data\Skywatch\catalog")
+    # file_path
+
+    # create the catalog
+    catalog = pystac.Catalog(id='catalog', description='Simulated satellite data catalog.')
+
+    # params for STAC item
+    # ------------------------------------------------------------------------------------
+
+    # 1. lon/lat coordinates
+    utm_crs = CRS.from_epsg(metadata_dict['EPSG Code'].item().decode('UTF-8')) # UTm coordinate system
+    latlon_crs = CRS.from_epsg('4326') # lat/lon coordiante system
+
+    coords_utm = [] # input UTM coordinates
+    coords_utm.append((metadata_dict['spatial extent'][0],metadata_dict['spatial extent'][2]))
+    coords_utm.append((metadata_dict['spatial extent'][0],metadata_dict['spatial extent'][3]))
+    coords_utm.append((metadata_dict['spatial extent'][1],metadata_dict['spatial extent'][2]))
+    coords_utm.append((metadata_dict['spatial extent'][1],metadata_dict['spatial extent'][3]))
+
+    transformer = Transformer.from_crs(utm_crs, latlon_crs) #transformer from UTM to lat/lon
+    lats = [] # output lat/lon coordinates
+    lons = []
+
+    for coords in coords_utm:
+        points = transformer.transform(coords[0],coords[1])
+        lats.append(points[0])
+        lons.append(points[1])
+
+    coords_latlon = list(zip(lats,lons))
+
+    bounds_right = max(lons)
+    bounds_left = min(lons)
+    bounds_top = max(lats)
+    bounds_bottom = min(lats)
+
+    bbox = [bounds_left, bounds_bottom, bounds_right, bounds_top] # image extent bounding box
+    polygon = mapping(Polygon([
+                        [bounds_left, bounds_bottom],
+                        [bounds_left, bounds_top],
+                        [bounds_right, bounds_top],
+                        [bounds_right, bounds_bottom]
+                    ]))
+    # --------------------------------------------------------------------------------------
+
+
+    # 2. Add the main STAC item
+    item = pystac.Item(id=filename_prefix,
+                     geometry=polygon,
+                     bbox=bbox,
+                     datetime=timestamp,
+                     properties={
+                                "license": "proprietary",
+                                #"datetime": "2021-12-09T21:33:31.158193", # are these the
+                                #"start_datetime": "2021-12-09T21:33:29.885445",
+                                #"end_datetime": "2021-12-09T21:33:32.430941",
+                                "datetime": str(timestamp),
+                                "start_datetime": str(start_timestamp),
+                                "end_datetime": str(end_timestamp),
+                                "providers": [{
+                                        "name": "Wyvern Space",
+                                        "roles": [
+                                            "producer",
+                                            "licensor"
+                                        ],
+                                        "url": "https://www.wyvern.space/"
+                                    }
+                                ],
+                                "platform": "Dragonette-Sim",
+                                "constellation": "imagineDragonette",
+                                "instruments": ["Hyperspectral-imager"],
+                                "sensor_mode": "strip",
+                                "sensor_type": "optical",
+                                "product_type": "hyperspectral",
+                                "created": "2021-05-04T00:00:01Z", # are these meant to be when the product was first created? or the satellite launched/operational?
+                                "updated": "2021-05-05T00:30:55Z",
+                                "gsd": metadata_dict['Spatial_Resolution_X_Y'][0],
+                                "sat:orbit_state": "descending",
+                                "sat:relative_orbit": 1,
+                     },
+                     stac_extensions = [pystac.Extensions.EO, pystac.Extensions.VIEW, pystac.Extensions.SAT] # add these in later: view & eo
+                      )
+
+    catalog.add_item(item)
+
+    # ------------------------------------------------------------------------------
+    # 3. Set extension parameters
+
+    # view parameters - no data yet
+    item.ext.view.sun_azimuth = -9999
+    item.ext.view.sun_elevation = -9999
+    item.ext.view.off_nadir = -9999
+    item.ext.view.incidence_angle = -9999
+    item.ext.view.azimuth = -9999
+
+    # sat parameters
+    #item.ext.sat.orbit_state = "descending"
+    item.ext.sat.relative_orbit = 9999
+
+    # eo parameters
+    item.ext.eo.cloud_cover = -9999
+
+    # -----------------------------------------------------------------------------------
+    # 4. Create bands info on EO
+
+    # desired_band_centres = [0.505, 0.526, 0.544, 0.565, 0.586,
+    #                         0.606, 0.626, 0.646, 0.665, 0.682, 0.699,
+    #                         0.715, 0.730, 0.745, 0.762, 0.779, 0.787, 0.804
+    #                        ]
+    #     common_band_names = ['green1','green2','green3','green4','yellow',
+    #                          'red1','red2','red3','red4','red5','red6',
+    #                          'rededge1','rededge2','rededge3',
+    #                          'nir1','nir2','nir3','nir4'
+    #                         ]
+
+    #fwhm = np.round(band_widths(desired_band_centres),3)
+    img_bands = []
+
+    for band in range(refl_array.shape[2]):
+
+        img_bands.append(Band.create(
+                    name='Band_'+str(band+1).zfill(3),
+                    common_name = common_band_names[band],
+                    center_wavelength = wavelength_array[band],
+                    full_width_half_max = FWHM_array[band], #fwhm[band],
+                    #gain = -9999,
+                    #offset = -9999,
+                    #esun = -9999,
+                    #raster_width = refl_array.shape[0],
+                    #raster_height = refl_array.shape[1]
+                   ))
+
+    #item.ext.eo.apply(bands=img_bands) # another way to set
+    item.ext.eo.set_bands(img_bands)
+
+    # -----------------------------------------------------------------------------------
+    # 5. Make the assets
+
+    for band in range(refl_array.shape[2]):
+        band_name =  'Band_' + str(band+1).zfill(3) + '.tif' # make into e.g. 001 or 013 instead of 1 or 13 etc.
+        file_name = filename_prefix + '_' + 'band_' + str(band+1).zfill(3) + '.tif' # UPDATE FILE NAME
+        #filename_prefix
+        #print('creating asset for ' + band_name) # change to logging
+        #downSampler_logger.debug('creating asset for ' + band_name) # logging
+
+        # add the STAC assets
+        item.add_asset(
+                        key = band_name,
+                        asset = pystac.Asset(
+                            title = common_band_names[band],
+                            #href = os.path.join(file_path, filename_prefix),
+                            href = file_name, # no full filepath needed here since the metadata file is in the same directory as the image assets
+                            media_type=pystac.MediaType.GEOTIFF,
+                            roles = ["reflectance", "data"]
+                        )
+        )
+
+
+    # 6. Add the preview asset
+    item.add_asset(
+                    key = filename_prefix+'_preview',
+                    asset = pystac.Asset(
+                        title = 'Preview',
+                        #href = os.path.join(img_path, file_name),
+                        href = filename_prefix+'_preview',
+                        media_type=pystac.MediaType.PNG,
+                        roles = ["overview"]
+                    )
+    )
+
+    # 7. Add the thumbnail asset
+
+
+
+
+    #catalog.normalize_hrefs(os.path.join(img_path, 'stac'))
+    catalog.normalize_hrefs(file_path)
+    catalog.make_all_asset_hrefs_relative()
+    catalog.save(catalog_type=pystac.CatalogType.SELF_CONTAINED)
+    #print(json.dumps(item.to_dict(), indent=4))
+
+    # ----------------------------------------------------------------------------------------------------------------------------------------------
+    # preview image and thumbnail
+    toRGB(refl_array, os.path.join(file_path, filename_prefix, filename_prefix+'_preview.png'), mode=2) # create the preview image
+
+    thumbnail_array = skimage.transform.resize(refl_array, (refl_array.shape[0] // 2, refl_array.shape[1] // 2),
+                      anti_aliasing=False)
+    # preview image and thumbnail
+    toRGB(thumbnail_array, os.path.join(file_path, filename_prefix, filename_prefix+'_thumbnail.png'), mode=2) # create the preview image
+
+
+    # ----------------------------------------------------------------------------------------------------------------------------------------------
+
+    # rename the metadata file
+    os.rename(os.path.join(file_path, filename_prefix, filename_prefix+".json"),os.path.join(file_path, filename_prefix, filename_prefix+"_metadata.json"))
 
 
 # ----------------------------------------------------------------------------------------------------------------------------------------
 
-def pipeline(data_dir_path, output_data_path, desired_GSD = 4,
-                desired_band_centres = [0.505, 0.526, 0.544, 0.565, 0.586, 0.606, 0.626, 0.646, 0.665, 0.682, 0.699, 0.715, 0.730, 0.745, 0.762, 0.779, 0.787, 0.804],
+def pipeline(data_dir_path, output_data_path, desired_band_centres,
+             desired_GSD = 5, output_mode = 'geotiff'
             ):
     """
     This script implements the image downsampling and rebanding pipeline.
@@ -587,24 +832,83 @@ def pipeline(data_dir_path, output_data_path, desired_GSD = 4,
         print("File loaded...")
 
         # perform downsampling
-        resamp_refl_array = downSample_reband_array(refl_array, metadata_dict['Spatial_Resolution_X_Y'][0], desired_GSD, wavelength_array, desired_band_centres) # downsample
-        metadata_dict['Spatial_Resolution_X_Y'] = [float(desired_GSD), float(desired_GSD)] # adjust resolution metadata to reflect downsampling
+        # params: img_array, GSD_input, GSD_output, input_bandcentres_array, output_bandcentres_array
+        resamp_refl_array = downSample_reband_array(img_array=refl_array, GSD_input=metadata_dict['Spatial_Resolution_X_Y'][0], GSD_output=desired_GSD, input_bandcentres_array=wavelength_array, output_bandcentres_array=desired_band_centres) # downsample
+        resamp_metadata_dict = metadata_dict.copy()
+        resamp_metadata_dict['Spatial_Resolution_X_Y'] = [float(desired_GSD), float(desired_GSD)] # adjust resolution metadata to reflect downsampling
+        rebanded_FWHM_array = np.round(band_widths(desired_band_centres),3)
         print("Downsampling Complete...")
 
-        # generate image
-        output_img_name = file_name.replace('NEON', 'Wyvern') # remove and replace NEON tag with Wyvern
-        output_img_name = output_img_name.replace('.h5', 'preview') + '_img_' + str(desired_GSD) + 'mGSD.png' # remove .h5 ending and replace with img, GSD and .png
-        output_data_path_filename = Path(output_data_path / 'preview_img' / output_img_name) # output path to save processed data files
-        toRGB(resamp_refl_array, output_data_path_filename, mode=2) # generate and save image
-        print("Image Generated...")
 
-        # write out file
-        output_hdf5_name = file_name.replace('NEON', 'Wyvern') # remove and replace NEON tag with Wyvern
-        output_hdf5_name = output_hdf5_name.replace('.h5', '') + '_downsampled_' + str(desired_GSD) + 'mGSD.h5' # add downsampled, GSD and .h5 file ending
-        output_data_path_filename = Path(output_data_path / 'hdf5_downsampled' / output_hdf5_name) # output path to save processed data files
-        band_width_array = band_widths(desired_band_centres)
-        array2h5data(resamp_refl_array, desired_band_centres, band_width_array, metadata_dict, output_data_path_filename) # save hdf5 data cube
-        print(file_name,"HDF5 File Written to Disk...")
+
+        if output_mode == 'hdf5':
+            # generate image
+            output_img_name = file_name.replace('NEON', 'Wyvern') # remove and replace NEON tag with Wyvern
+            output_img_name = output_img_name.replace('.h5', 'preview') + '_img_' + str(desired_GSD) + 'mGSD.png' # remove .h5 ending and replace with img, GSD and .png
+            output_data_path_filename = Path(output_data_path / 'preview_img' / output_img_name) # output path to save processed data files
+            toRGB(resamp_refl_array, output_data_path_filename, mode=2) # generate and save image
+            print("Image Generated...")
+
+            # write out file
+            output_hdf5_name = file_name.replace('NEON', 'Wyvern') # remove and replace NEON tag with Wyvern
+            output_hdf5_name = output_hdf5_name.replace('.h5', '') + '_downsampled_' + str(desired_GSD) + 'mGSD.h5' # add downsampled, GSD and .h5 file ending
+            output_data_path_filename = Path(output_data_path / 'hdf5_downsampled' / output_hdf5_name) # output path to save processed data files
+            band_width_array = band_widths(desired_band_centres)
+            array2h5data(resamp_refl_array, desired_band_centres, band_width_array, metadata_dict, output_data_path_filename) # save hdf5 data cube
+            print(file_name,"HDF5 File Written to Disk...")
+
+        elif output_mode == 'geotiff': # output geotiffs and STAC geojson metadata
+
+            # set the time the image is created
+            timestamp = datetime.datetime.utcnow()
+            start_timestamp = timestamp + datetime.timedelta(0,-5)
+            end_timestamp = timestamp + datetime.timedelta(0,5)
+
+            time_string = str(timestamp).replace(' ','T') # add T in
+            time_string = time_string.replace('-','') # remove hyphens
+            time_string = time_string.replace(':','') # remove :
+            time_string = time_string[0:15]
+
+            filename_prefix = 'WYVERN_DS_'+ time_string +'_'+rand_string(7) # create filename prefix
+            downSampler_logger.debug("generating filename prefix: "+filename_prefix)  # logging
+
+
+            # Parent Directory path
+            parent_dir = os.path.join(output_data_path, "catalog")
+            # parent_dir = "../data/pipeline_output/catalog" # change this in production pipeline # change this in production pipeline
+            # make directory
+            if not os.path.isdir(parent_dir):
+                try:
+                    os.makedirs(parent_dir, exist_ok=True)
+                except OSError:
+                    print(">>>>>> Creation of the directory {} failed".format(output_dir))
+                else:
+                    print(">>>>>> Successfully created the directory {}".format(output_dir))
+                    #downSampler_logger.debug(">>>>>> Successfully created the directory {}".format(output_dir))  # logging
+
+            # define some band names
+            common_band_names = ['green1','green2','green3','green4','yellow',
+                                 'red1','red2','red3','red4','red5','red6',
+                                 'rededge1','rededge2','rededge3',
+                                 'nir1','nir2','nir3','nir4'
+                                ]
+
+            # gnerate metadata file
+            print('Generating STAC metadata file...')
+            metadata2geojsonSTAC(resamp_refl_array, desired_band_centres, rebanded_FWHM_array, resamp_metadata_dict, common_band_names, timestamp, start_timestamp, end_timestamp, parent_dir, filename_prefix)
+            # refl_array, metadata_dict, wavelength_array, FWHM_array, common_band_names, timestamp, start_timestamp, end_timestamp, file_path, filename_prefix="WYVERN_DS"
+            print('STAC metadata file generated!')
+
+            print('Generating geotiff image files...')
+            # generate geotiff images
+            output_dir = os.path.join(parent_dir, filename_prefix) # save geotiffs directly into the new directory that the STAC metadata file made
+            array2gtiff_raster(resamp_refl_array, desired_band_centres, rebanded_FWHM_array, resamp_metadata_dict, 1, 1, output_dir, filename_prefix)
+            # refl_array, wavelength_array, FWHM_array, metadata_dict, pixelWidth, pixelHeight, file_path, filename_prefix="WYVERN_DS"
+            print('Geotiff image files generated!')
+
+
+        else:
+            print('No file output mode selected')
 
     print("-" * 50)
     print("All Processing Completed!")

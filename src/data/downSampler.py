@@ -799,11 +799,35 @@ def metadata2geojsonSTAC(refl_array, wavelength_array, FWHM_array, metadata_dict
 # ----------------------------------------------------------------------------------------------------------------------------------------
 
 def pipeline(data_dir_path, output_data_path, desired_band_centres,
-             desired_GSD = 5, output_mode = 'geotiff'
+             desired_GSD = 5, nodata_thres = 0.5, output_mode = 'geotiff'
             ):
     """
     This script implements the image downsampling and rebanding pipeline.
 
+    Parameters
+    -----------
+    data_dir_path : string / filepath-like
+                Input image directory to find HDF5 files in.
+
+    output_data_path : string / filepath-like
+                Output image directory to write processed files in.
+
+    desired_band_centres : 1-D array_like
+                Array of the desired band centres to process input into.
+
+    desired_GSD : integer, float
+                Number in m units of desired ground sample distance to process into.
+
+    nodata_thres : float
+                Decimal fraction of missing data acceptable - images with more
+                missing data then threshold will be skipped for processing
+
+    --------
+    Example Execution:
+    --------
+    def pipeline("/myinput/filepath/here", "/myoutput/filepath/here", [0.5, 0.586, 0.665, 0.804],
+                desired_GSD = 5, nodata_thres = 0.5, output_mode = 'geotiff'
+                )
     """
     # print("This is my file to test Python's execution methods.")
     # print("The variable __name__ tells me which context this file is running in.")
@@ -830,6 +854,14 @@ def pipeline(data_dir_path, output_data_path, desired_band_centres,
         data_file_path = file_dict[file_name]
         refl_array, wavelength_array, FWHM_array, metadata_dict = h5data2array(data_file_path)
         print("File loaded...")
+
+        # check missing data % and don't bother processingh image if too high
+        if np.round(np.count_nonzero(refl_array == metadata_dict['data ignore value'])/(refl_array.shape[0]*refl_array.shape[1]*refl_array.shape[2]),1) > nodata_thres:
+            print("{} is missing > {} % threshold of data, processing skipped!".format(file_name, nodata_thres*100))
+
+            continue
+
+
 
         # perform downsampling
         # params: img_array, GSD_input, GSD_output, input_bandcentres_array, output_bandcentres_array

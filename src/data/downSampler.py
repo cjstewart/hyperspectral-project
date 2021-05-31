@@ -26,6 +26,7 @@ import datetime
 import random
 import string
 import math
+import tqdm
 
 # dataframe options
 pd.set_option('display.max_columns', None)
@@ -847,7 +848,9 @@ def pipeline(data_dir_path, output_data_path, desired_band_centres,
     file_dict = find_files(data_dir_path)
     print("Input files found...")
 
-    for file_name, file_path in file_dict.items():
+
+    for file_name, file_path in tqdm.tqdm(file_dict.items(), desc = "Processing image(s):"):
+    #for file_name, file_path in file_dict.items():
         print("Processing file: ",file_name)
         # read the h5data2array for an image
         #file_name = 'NEON_D16_ABBY_DP3_552000_5071000_reflectance.h5'
@@ -855,21 +858,19 @@ def pipeline(data_dir_path, output_data_path, desired_band_centres,
         refl_array, wavelength_array, FWHM_array, metadata_dict = h5data2array(data_file_path)
         print("File loaded...")
 
-        # check missing data % and don't bother processingh image if too high
-        if np.round(np.count_nonzero(refl_array == metadata_dict['data ignore value'])/(refl_array.shape[0]*refl_array.shape[1]*refl_array.shape[2]),1) > nodata_thres:
-            print("{} is missing > {} % threshold of data, processing skipped!".format(file_name, nodata_thres*100))
+        # check missing data % and don't bother processing image if too high
+        #if np.round(np.count_nonzero(refl_array == metadata_dict['data ignore value'])/(refl_array.shape[0]*refl_array.shape[1]*refl_array.shape[2]),1) > nodata_thres:
+        #    print("{} is missing > {} % threshold of data, processing skipped!".format(file_name, nodata_thres*100))
+        #    continue
 
-            continue
-
-
-
+        print("Downsampling image...")
         # perform downsampling
         # params: img_array, GSD_input, GSD_output, input_bandcentres_array, output_bandcentres_array
         resamp_refl_array = downSample_reband_array(img_array=refl_array, GSD_input=metadata_dict['Spatial_Resolution_X_Y'][0], GSD_output=desired_GSD, input_bandcentres_array=wavelength_array, output_bandcentres_array=desired_band_centres) # downsample
         resamp_metadata_dict = metadata_dict.copy()
         resamp_metadata_dict['Spatial_Resolution_X_Y'] = [float(desired_GSD), float(desired_GSD)] # adjust resolution metadata to reflect downsampling
         rebanded_FWHM_array = np.round(band_widths(desired_band_centres),3)
-        print("Downsampling Complete...")
+        print("Downsampling complete...")
 
 
 
@@ -879,7 +880,7 @@ def pipeline(data_dir_path, output_data_path, desired_band_centres,
             output_img_name = output_img_name.replace('.h5', 'preview') + '_img_' + str(desired_GSD) + 'mGSD.png' # remove .h5 ending and replace with img, GSD and .png
             output_data_path_filename = Path(output_data_path / 'preview_img' / output_img_name) # output path to save processed data files
             toRGB(resamp_refl_array, output_data_path_filename, mode=2) # generate and save image
-            print("Image Generated...")
+            print("Image generated...")
 
             # write out file
             output_hdf5_name = file_name.replace('NEON', 'Wyvern') # remove and replace NEON tag with Wyvern

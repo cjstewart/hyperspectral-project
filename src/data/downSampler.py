@@ -54,7 +54,7 @@ def find_files(data_dir_path):
     This function takes in a path to a data directory, walks the directory and
     returns a dictionary of the filenames and paths of all the data files.
     """
-    downSampler_logger.debug("find_files function called")  # logging
+    downSampler_logger.info("find_files function called")  # logging
     # get all the h5 data filenames and paths
     file_dict = {} # to store file:path pairs
     print('Finding data files...')
@@ -75,7 +75,7 @@ def descend_obj(obj,sep='\t'):
     Iterate through groups in a HDF5 file and prints the groups and datasets
     names and datasets attributes
     """
-    downSampler_logger.debug("descend_obj function called") # logging
+    downSampler_logger.info("descend_obj function called") # logging
 
     if type(obj) in [h5py._hl.group.Group,h5py._hl.files.File]:
         for key in obj.keys():
@@ -126,7 +126,7 @@ def h5data2array(data_file_path, clamp_values=True):
     refl_clean, wavelength_array, FWHM_array, metadata = h5data2array("myHDF5file.h5")
 
     """
-    downSampler_logger.debug("h5data2array function called") # logging
+    downSampler_logger.info("h5data2array function called") # logging
 
 
     hdf5_file = h5py.File(data_file_path,'r') # open file
@@ -196,7 +196,7 @@ def array2h5data(refl_array, wavelength_array, FWHM_array, metadata_dict, filena
     Takes in a 3-D reflectance array, an array of band centre wavelengths, FWHM array,
     and an additional metadata dictionary and generates a HDF5 file with the given filename.
     """
-    downSampler_logger.debug("array2h5data function called") # logging
+    downSampler_logger.info("array2h5data function called") # logging
 
 
     # scale the reflectance data up by the original reflectance factor to save disk space
@@ -240,7 +240,7 @@ def array2h5raster(refl_array, wavelength_array, FWHM_array, metadata_dict, file
     and an additional metadata dictionary and generates a HDF5 file with the given filename.
     Each band of reflectance data is written to its own hdf5 dataset.
     """
-    downSampler_logger.debug("array2h5raster function called") # logging
+    downSampler_logger.info("array2h5raster function called") # logging
 
     # scale the reflectance data up by the original reflectance factor to save disk space
     scale_fac = metadata_dict['reflectance scale factor']
@@ -343,6 +343,7 @@ def array2gtiff_raster(refl_array, wavelength_array, FWHM_array, metadata_dict, 
     array2gtiff_raster(refl_array, wavelength_array, FWHM_array, metadata_dict, filename_output, pixelWidth, pixelHeight)
 
     """
+    downSampler_logger.info("array2gtiff_raster function called") # logging
 
     # set up parameters
     rows = refl_array.shape[0] # rows of image
@@ -403,7 +404,7 @@ def reband_spectral_array(spect_array, input_bandcentres_array, output_bandcentr
     refl_array_new = reband_spec(spect_array, input_bandcentres_array, output_bandcentres_array)
 
     """
-    #downSampler_logger.debug("reband_spectral_array function called") # logging
+    #downSampler_logger.info("reband_spectral_array function called") # logging
 
 
     if len(input_bandcentres_array) == len(spect_array): # error checking
@@ -422,7 +423,7 @@ def band_widths(bandcentres_array):
     """
     Generates band widths from given band centre wavelengths
     """
-    downSampler_logger.debug("band_widths function called") # logging
+    downSampler_logger.info("band_widths function called") # logging
 
     bandwidths_array = np.empty(len(bandcentres_array)) # create empty array to store bands widths
 
@@ -474,10 +475,10 @@ def downSample_reband_array(img_array, GSD_input, GSD_output, input_bandcentres_
     img_array_ds = downSample_array(img_array, 1, 2) # downsample image by factor of 2
 
     """
-    downSampler_logger.debug("downSample_reband_array function called") # logging
+    downSampler_logger.info("downSample_reband_array function called") # logging
     downSampler_logger.debug("GSD_output passed: {}, GSD_input passed: {}".format(GSD_output, GSD_input)) # logging
 
-    downsample_factor = max(int(math.ceil(GSD_output/GSD_input)),1) # calculate the downsampling factor - only integers!
+    downsample_factor = max(int(math.ceil(GSD_output/GSD_input)),1) # calculate the downsampling factor - outputs only integers!
     rescale_factor = float(downsample_factor)
     downSampler_logger.debug("Rescale_factor calculated: {}".format(rescale_factor)) # logging
 
@@ -495,6 +496,7 @@ def downSample_reband_array(img_array, GSD_input, GSD_output, input_bandcentres_
 
 
     # loop through all spatial pixels and reband the spectral component of each one
+    downSampler_logger.info("rebrand_spectral _array function going to run {} times".format(img_array_ds.shape[0]*img_array_ds.shape[1])) # logging
     for x in range(0,img_array_ds.shape[0]): # x dimension
         for y in range(0,img_array_ds.shape[1]): # y dimension
 
@@ -502,6 +504,7 @@ def downSample_reband_array(img_array, GSD_input, GSD_output, input_bandcentres_
             rebanded_array[x, y, :] = reband_spectral_array(img_array_ds[x, y, :],
                                                             input_bandcentres_array,
                                                             output_bandcentres_array) # build up empty array with rebanded arrays
+    downSampler_logger.info("rebrand_spectral _array function run complete") # logging
 
     downSampler_logger.debug("Should be full now - rebanded_array shape: {}, rebanded_array: {}".format(rebanded_array.shape, rebanded_array)) # logging
     # upscale image back to original input image size (interpolating pixels in between)
@@ -528,6 +531,7 @@ def toRGB(refl_array, filename_output, mode=1):
     green ~= 495–570 nm -> pick 510 nm -> rgb(0,255,0) : wavelength_array[0] = 505, pick 544 wavelength_array[4] instead
     blue ~= 450-495 nm -> pick 440 nm - > rgb(0,0,255) : wavelength_array[0] = 505 pick  wavelength_array[1]
     """
+    downSampler_logger.info("toRGB function called") # logging
     if (mode == 1):
         # this mode is for original 426 spectrum array
         red = refl_array[:,:,64] + refl_array[:,:,64-1] + refl_array[:,:,64+1]
@@ -568,6 +572,7 @@ def rand_string(length):
     '''
     Generates a string of random characters of the passed in length
     '''
+    downSampler_logger.info("rand_string function called") # logging
     # from here: https://www.askpython.com/python/examples/generate-random-strings-in-python
     return ''.join(random.SystemRandom().choice(string.ascii_letters + string.digits) for _ in range(length))
 
@@ -600,7 +605,7 @@ def metadata2geojsonSTAC(refl_array, wavelength_array, FWHM_array, metadata_dict
     writeMetadata_STAC(refl_array, wavelength_array, FWHM_array, metadata_dict, filename_output, pixelWidth, pixelHeight)
 
     """
-
+    downSampler_logger.info("metadata2geojsonSTAC function called") # logging
     # file_path = Path(r"..\data\Skywatch\catalog")
     # file_path
 
@@ -782,12 +787,14 @@ def metadata2geojsonSTAC(refl_array, wavelength_array, FWHM_array, metadata_dict
     #print(json.dumps(item.to_dict(), indent=4))
 
     # ----------------------------------------------------------------------------------------------------------------------------------------------
-    # preview image and thumbnail
+    # preview image
+    print("Generating preview image...")
     toRGB(refl_array, os.path.join(file_path, filename_prefix, filename_prefix+'_preview.png'), mode=2) # create the preview image
 
     thumbnail_array = skimage.transform.resize(refl_array, (refl_array.shape[0] // 2, refl_array.shape[1] // 2),
                       anti_aliasing=False)
-    # preview image and thumbnail
+    # preview thumbnail
+    print("Generating thumbnail image...")
     toRGB(thumbnail_array, os.path.join(file_path, filename_prefix, filename_prefix+'_thumbnail.png'), mode=2) # create the preview image
 
 
@@ -795,7 +802,7 @@ def metadata2geojsonSTAC(refl_array, wavelength_array, FWHM_array, metadata_dict
 
     # rename the metadata file
     os.rename(os.path.join(file_path, filename_prefix, filename_prefix+".json"),os.path.join(file_path, filename_prefix, filename_prefix+"_metadata.json"))
-
+    print("Metadata file generated")
 
 # ----------------------------------------------------------------------------------------------------------------------------------------
 
@@ -830,10 +837,7 @@ def pipeline(data_dir_path, output_data_path, desired_band_centres,
                 desired_GSD = 5, nodata_thres = 0.5, output_mode = 'geotiff'
                 )
     """
-    # print("This is my file to test Python's execution methods.")
-    # print("The variable __name__ tells me which context this file is running in.")
-    # print("The value of __name__ is:", repr(__name__))
-
+    downSampler_logger.info("pipeline function called") # logging
 
     ## set up our desired bands and GSD parameters, as well as our input and output files directory
     # 0.505, 0.526, 0.544, 0.565, 0.586, 0.606, 0.626, 0.646,  0.665, 0.682, 0.699, 0.715, 0.730, 0.745, 0.762, 0.779, 0.787, 0.804
@@ -849,7 +853,7 @@ def pipeline(data_dir_path, output_data_path, desired_band_centres,
     print("Input files found...")
 
 
-    for file_name, file_path in tqdm.tqdm(file_dict.items(), desc = "Processing image(s):"):
+    for file_name, file_path in tqdm.tqdm(file_dict.items(), desc = "Processing image(s)"):
     #for file_name, file_path in file_dict.items():
         print("Processing file: ",file_name)
         # read the h5data2array for an image
@@ -859,9 +863,9 @@ def pipeline(data_dir_path, output_data_path, desired_band_centres,
         print("File loaded...")
 
         # check missing data % and don't bother processing image if too high
-        #if np.round(np.count_nonzero(refl_array == metadata_dict['data ignore value'])/(refl_array.shape[0]*refl_array.shape[1]*refl_array.shape[2]),1) > nodata_thres:
-        #    print("{} is missing > {} % threshold of data, processing skipped!".format(file_name, nodata_thres*100))
-        #    continue
+        if np.round(np.count_nonzero(refl_array == metadata_dict['data ignore value'])/(refl_array.shape[0]*refl_array.shape[1]*refl_array.shape[2]),1) > nodata_thres:
+           print("{} is missing > {} % threshold of data, processing skipped!".format(file_name, nodata_thres*100))
+           continue
 
         print("Downsampling image...")
         # perform downsampling

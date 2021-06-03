@@ -837,7 +837,8 @@ def pipeline(data_dir_path, output_data_path, desired_band_centres,
                 desired_GSD = 5, nodata_thres = 0.5, output_mode = 'geotiff'
                 )
     """
-    downSampler_logger.info("pipeline function called") # logging
+    downSampler_logger.info('-'*25+"New Run"+'-'*25) # logging
+    downSampler_logger.info("pipeline function called: v_0.40") # logging
 
     ## set up our desired bands and GSD parameters, as well as our input and output files directory
     # 0.505, 0.526, 0.544, 0.565, 0.586, 0.606, 0.626, 0.646,  0.665, 0.682, 0.699, 0.715, 0.730, 0.745, 0.762, 0.779, 0.787, 0.804
@@ -870,29 +871,31 @@ def pipeline(data_dir_path, output_data_path, desired_band_centres,
         print("Downsampling image...")
         # perform downsampling
         # params: img_array, GSD_input, GSD_output, input_bandcentres_array, output_bandcentres_array
-        resamp_refl_array = downSample_reband_array(img_array=refl_array, GSD_input=metadata_dict['Spatial_Resolution_X_Y'][0], GSD_output=desired_GSD, input_bandcentres_array=wavelength_array, output_bandcentres_array=desired_band_centres) # downsample
+        resamp_refl_array = downSample_reband_array(refl_array, metadata_dict['Spatial_Resolution_X_Y'][0], desired_GSD, wavelength_array, desired_band_centres) # downsample
         resamp_metadata_dict = metadata_dict.copy()
         resamp_metadata_dict['Spatial_Resolution_X_Y'] = [float(desired_GSD), float(desired_GSD)] # adjust resolution metadata to reflect downsampling
         rebanded_FWHM_array = np.round(band_widths(desired_band_centres),3)
-        print("Downsampling complete...")
+        print("Downsampling complete!")
 
 
 
         if output_mode == 'hdf5':
             # generate image
+            print("Generated image...")
             output_img_name = file_name.replace('NEON', 'Wyvern') # remove and replace NEON tag with Wyvern
             output_img_name = output_img_name.replace('.h5', 'preview') + '_img_' + str(desired_GSD) + 'mGSD.png' # remove .h5 ending and replace with img, GSD and .png
             output_data_path_filename = Path(output_data_path / 'preview_img' / output_img_name) # output path to save processed data files
             toRGB(resamp_refl_array, output_data_path_filename, mode=2) # generate and save image
-            print("Image generated...")
+            print("Image generated!")
 
             # write out file
+            print(file_name,"Writting HDF5 file to disk...")
             output_hdf5_name = file_name.replace('NEON', 'Wyvern') # remove and replace NEON tag with Wyvern
             output_hdf5_name = output_hdf5_name.replace('.h5', '') + '_downsampled_' + str(desired_GSD) + 'mGSD.h5' # add downsampled, GSD and .h5 file ending
             output_data_path_filename = Path(output_data_path / 'hdf5_downsampled' / output_hdf5_name) # output path to save processed data files
             band_width_array = band_widths(desired_band_centres)
             array2h5data(resamp_refl_array, desired_band_centres, band_width_array, metadata_dict, output_data_path_filename) # save hdf5 data cube
-            print(file_name,"HDF5 File Written to Disk...")
+            print(file_name,"HDF5 file written to disk!")
 
         elif output_mode == 'geotiff': # output geotiffs and STAC geojson metadata
 
@@ -907,7 +910,7 @@ def pipeline(data_dir_path, output_data_path, desired_band_centres,
             time_string = time_string[0:15]
 
             filename_prefix = 'WYVERN_DS_'+ time_string +'_'+rand_string(7) # create filename prefix
-            downSampler_logger.debug("generating filename prefix: "+filename_prefix)  # logging
+            downSampler_logger.debug("Generating filename prefix: "+filename_prefix)  # logging
 
 
             # Parent Directory path
@@ -949,6 +952,7 @@ def pipeline(data_dir_path, output_data_path, desired_band_centres,
 
     print("-" * 50)
     print("All Processing Completed!")
+    downSampler_logger.info("pipeline processing complete!") # logging
     print("-" * 50)
 
 # ----------------------------------------------------------------------------------------------------------------------------------------

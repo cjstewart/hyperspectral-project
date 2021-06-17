@@ -72,8 +72,15 @@ def find_files(data_dir_path):
 # Much more better!
 def descend_obj(obj,sep='\t'):
     """
-    Iterate through groups in a HDF5 file and prints the groups and datasets
-    names and datasets attributes
+    Helper function that recursively iterates through groups in a HDF5 file and
+    prints the groups and datasets names and datasets attributes
+    --------
+    Parameters
+        obj -- file object to parse the structure of
+    --------
+    Returns
+    --------
+    None
     """
     downSampler_logger.info("descend_obj function called") # logging
 
@@ -336,7 +343,6 @@ def array2gtiff_raster(refl_array, wavelength_array, FWHM_array, metadata_dict, 
     FWHM_array : 1-D array_like
                 Array of the band widths
 
-
     --------
     Example Execution:
     --------
@@ -489,7 +495,7 @@ def downSample_reband_array(img_array, GSD_input, GSD_output, input_bandcentres_
     downSampler_logger.debug("img_array: {}, img_array_ds downsampled: {}".format(img_array, img_array_ds)) # logging
 
     # create empty array to store the rebanded spectral arrays
-    output_bandcentres_array = np.array(output_bandcentres_array)*1000 # convert to nm
+    #output_bandcentres_array = np.array(output_bandcentres_array)*1000 # convert to nm
     rebanded_array = np.zeros((img_array_ds.shape[0], img_array_ds.shape[1], len(output_bandcentres_array)))
     downSampler_logger.debug("Should be empty - rebanded_array shape: {}".format(rebanded_array.shape)) # logging
     downSampler_logger.debug("Should be empty - rebanded_array: {}".format(rebanded_array)) # logging
@@ -589,15 +595,16 @@ def metadata2geojsonSTAC(refl_array, wavelength_array, FWHM_array, metadata_dict
 
     Parameters
     -----------
-    xxxxx : 3-D array_like
+    refl_array : 3-D array_like
                 Array of image spectral reflectance values that will be used in the raster layers
 
-    xxxxx : 1-D array_like
+    wavelength_array : 1-D array_like
                 Array of the band centre wavelengths for the given spectral reflectance array
 
-    xxxxxxx : 1-D array_like
+    FWHM_array : 1-D array_like
                 Array of the band widths
 
+    metadata_dict : dictionary with metadata values
 
     --------
     Example Execution:
@@ -842,17 +849,14 @@ def pipeline(data_dir_path, output_data_path, desired_band_centres,
 
     ## set up our desired bands and GSD parameters, as well as our input and output files directory
     # 0.505, 0.526, 0.544, 0.565, 0.586, 0.606, 0.626, 0.646,  0.665, 0.682, 0.699, 0.715, 0.730, 0.745, 0.762, 0.779, 0.787, 0.804
-    #desired_band_centres = np.array([0.505, 0.526, 0.544, 0.565, 0.586, 0.606, 0.626, 0.646, 0.665, 0.682, 0.699, 0.715, 0.730, 0.745, 0.762, 0.779, 0.787, 0.804])
     desired_band_centres = np.array(desired_band_centres)*1000 # convert to nm
+    #desired_band_centres = np.array(desired_band_centres) # leave as um
     #desired_GSD = 4 # 4m GSD
-    #data_dir_path = Path(os.getcwd()).parents[0] / 'data' / 'NEON' # get path to data files
-    #output_data_path = Path(os.getcwd()).parents[0] / 'data' / 'interim' # output data directory
     print("Parameters set...")
 
     # get all input HDF5 files
     file_dict = find_files(data_dir_path)
     print("Input files found...")
-
 
     for file_name, file_path in tqdm.tqdm(file_dict.items(), desc = "Processing image(s)"):
     #for file_name, file_path in file_dict.items():

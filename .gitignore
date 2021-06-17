@@ -1,8 +1,8 @@
 # ---------- User generated below ---------------
 
-data/
+/data/
 references/
-
+*.tif
 
 # ---------- Github generated below ---------------
 

@@ -915,7 +915,7 @@ def pipeline(data_dir_path, output_data_path, desired_band_centres,
 
             # create filename based on company name, DS = Dragonette Simulated,
             # time string, 4 character NEON area code, and random 3 character string
-            filename_prefix = 'WYVERN_DS_'+ time_string +'_'+ file_name[9:13] +rand_string(7)
+            filename_prefix = 'WYVERN_DS_'+ time_string +'_'+ file_name[9:13] + rand_string(7).lower()
             downSampler_logger.debug("Generating filename prefix: "+filename_prefix)  # logging
 
 

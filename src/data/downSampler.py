@@ -343,6 +343,19 @@ def array2gtiff_raster(refl_array, wavelength_array, FWHM_array, metadata_dict, 
     FWHM_array : 1-D array_like
                 Array of the band widths
 
+    metadata_dict : dictionary of metadata
+
+    pixelWidth : int or float
+                Ground coverage width of a pixel in meters
+
+    pixelHeight : int or float
+                Ground coverage height of a pixel in meters
+
+    file_path : string or path object
+                Directory path to save outputted files to
+
+    filename_prefix : string, default = "WYVERN_DS"
+                Prefix to append to front of outputted filenames
     --------
     Example Execution:
     --------
@@ -515,8 +528,8 @@ def downSample_reband_array(img_array, GSD_input, GSD_output, input_bandcentres_
     downSampler_logger.debug("Should be full now - rebanded_array shape: {}, rebanded_array: {}".format(rebanded_array.shape, rebanded_array)) # logging
     # upscale image back to original input image size (interpolating pixels in between)
     downSampler_logger.debug("Rescale of the rebanded_array shape: {}, rescaled rebanded_array: {}".format(skimage.transform.rescale(rebanded_array,(rescale_factor,rescale_factor,1.0)).shape, skimage.transform.rescale(rebanded_array,(rescale_factor,rescale_factor,1.0)))) # logging
-    return np.round(skimage.transform.rescale(rebanded_array,(rescale_factor,rescale_factor,1.0)),4) # scale back up to original size (interpolates)
-
+    #return np.round(skimage.transform.rescale(rebanded_array,(rescale_factor,rescale_factor,1.0)),4) # scale back up to original size (interpolates)
+    return np.round(rebanded_array,4) # round to 4 decimals
 
 # ----------------------------------------------------------------------------------------------------------------------------------------
 

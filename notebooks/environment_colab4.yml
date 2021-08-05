@@ -1,0 +1,46 @@
+name: base
+channels:
+  - conda-forge
+dependencies:
+  - gdal=3.1.*
+  - geojson
+  - geos
+  - geotiff
+  - hdf5
+  - ipykernel
+  - ipython
+  - ipython_genutils
+  - ipywidgets
+  - jpeg
+  - json5
+  - jsonschema
+  - jupyter_client
+  - jupyter_core
+  - jupyterlab_pygments
+  - jupyterlab_widgets
+  - libgdal
+  - matplotlib
+  - matplotlib-base
+  - matplotlib-inline
+  - nbclient
+  - notebook
+  - numpy
+  - pandas
+  - pathlib
+  - pillow
+  - pip
+  - proj
+  - pyproj
+  - pystac
+  - python=3.7.*
+  - python-dateutil
+  - requests
+  - ruamel_yaml
+  - scikit-learn
+  - scipy
+  - seaborn
+  - tqdm
+  - widgetsnbextension
+  - pip:
+    - condacolab==0.1.2
+prefix: /usr/local

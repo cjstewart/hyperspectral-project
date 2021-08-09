@@ -966,14 +966,23 @@ def pipeline(data_dir_path, output_data_path, desired_band_centres,
 
             # gnerate metadata file
             print('Generating STAC metadata file...')
-            metadata2geojsonSTAC(resamp_refl_array, desired_band_centres, rebanded_FWHM_array, resamp_metadata_dict, common_band_names, timestamp, start_timestamp, end_timestamp, parent_dir, filename_prefix)
+            metadata2geojsonSTAC(resamp_refl_array, desired_band_centres,
+                                rebanded_FWHM_array, resamp_metadata_dict,
+                                common_band_names, timestamp, start_timestamp,
+                                end_timestamp, parent_dir, filename_prefix
+                                )
             # refl_array, metadata_dict, wavelength_array, FWHM_array, common_band_names, timestamp, start_timestamp, end_timestamp, file_path, filename_prefix="WYVERN_DS"
             print('STAC metadata file generated!')
 
             print('Generating geotiff image files...')
             # generate geotiff images
             output_dir = os.path.join(parent_dir, filename_prefix) # save geotiffs directly into the new directory that the STAC metadata file made
-            array2gtiff_raster(resamp_refl_array, desired_band_centres, rebanded_FWHM_array, resamp_metadata_dict, 1, 1, output_dir, filename_prefix)
+            array2gtiff_raster(resamp_refl_array, desired_band_centres, 
+                                rebanded_FWHM_array, resamp_metadata_dict,
+                                resamp_metadata_dict['Spatial_Resolution_X_Y'][0], # pixel width
+                                resamp_metadata_dict['Spatial_Resolution_X_Y'][1], # pixel height
+                                output_dir, filename_prefix
+                                )
             # refl_array, wavelength_array, FWHM_array, metadata_dict, pixelWidth, pixelHeight, file_path, filename_prefix="WYVERN_DS"
             print('Geotiff image files generated!')
 

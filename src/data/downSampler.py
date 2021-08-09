@@ -6,7 +6,10 @@ import h5py
 from PIL import Image
 import json
 import pystac
+from pystac.extensions.eo import EOExtension
 from pystac.extensions.eo import Band
+from pystac.extensions.view import ViewExtension
+from pystac.extensions.sat import SatExtension
 
 # plotting
 import matplotlib as mpl
@@ -705,27 +708,36 @@ def metadata2geojsonSTAC(refl_array, wavelength_array, FWHM_array, metadata_dict
                                 "sat:orbit_state": "descending",
                                 "sat:relative_orbit": 1,
                      },
-                     stac_extensions = [pystac.Extensions.EO, pystac.Extensions.VIEW, pystac.Extensions.SAT] # add these in later: view & eo
+                     stac_extensions = [
+                        "https://stac-extensions.github.io/eo/v1.0.0/schema.json",
+                        "https://stac-extensions.github.io/view/v1.0.0/schema.json",
+                        "https://stac-extensions.github.io/sat/v1.0.0/schema.json"
+                    ]
                       )
 
     catalog.add_item(item)
 
     # ------------------------------------------------------------------------------
     # 3. Set extension parameters
-
+    item_ext = ViewExtension.ext(item)
     # view parameters - no data yet
-    item.ext.view.sun_azimuth = -9999
-    item.ext.view.sun_elevation = -9999
-    item.ext.view.off_nadir = -9999
-    item.ext.view.incidence_angle = -9999
-    item.ext.view.azimuth = -9999
+    item_ext.sun_azimuth = -9999
+    item_ext.sun_elevation = -9999
+    item_ext.off_nadir = -9999
+    item_ext.incidence_angle = -9999
+    item_ext.azimuth = -9999
+    #item.ext.view.azimuth = -9999
 
     # sat parameters
     #item.ext.sat.orbit_state = "descending"
-    item.ext.sat.relative_orbit = 9999
+    item_ext = SatExtension.ext(item)
+    #item_ext.orbit_state = "descending"
+    #item_ext.relative_orbit = 9999
+    #item.ext.sat.relative_orbit = 9999
 
     # eo parameters
-    item.ext.eo.cloud_cover = -9999
+    item_ext = EOExtension.ext(item)
+    item_ext.cloud_cover = -9999
 
     # -----------------------------------------------------------------------------------
     # 4. Create bands info on EO
@@ -758,7 +770,7 @@ def metadata2geojsonSTAC(refl_array, wavelength_array, FWHM_array, metadata_dict
                    ))
 
     #item.ext.eo.apply(bands=img_bands) # another way to set
-    item.ext.eo.set_bands(img_bands)
+    item_ext.apply(bands=img_bands)
 
     # -----------------------------------------------------------------------------------
     # 5. Make the assets

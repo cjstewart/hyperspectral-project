@@ -979,8 +979,8 @@ def pipeline(data_dir_path, output_data_path, desired_band_centres,
             output_dir = os.path.join(parent_dir, filename_prefix) # save geotiffs directly into the new directory that the STAC metadata file made
             array2gtiff_raster(resamp_refl_array, desired_band_centres,
                                 rebanded_FWHM_array, resamp_metadata_dict,
-                                pixelWidth = resamp_metadata_dict['Spatial_Resolution_X_Y'][0], # pixel width
-                                pixelHeight = resamp_metadata_dict['Spatial_Resolution_X_Y'][1], # pixel height
+                                resamp_metadata_dict['Spatial_Resolution_X_Y'][0], # pixel width
+                                resamp_metadata_dict['Spatial_Resolution_X_Y'][1], # pixel height
                                 output_dir, filename_prefix
                                 )
             # refl_array, wavelength_array, FWHM_array, metadata_dict, pixelWidth, pixelHeight, file_path, filename_prefix="WYVERN_DS"

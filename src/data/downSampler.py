@@ -776,7 +776,7 @@ def metadata2geojsonSTAC(refl_array, wavelength_array, FWHM_array, metadata_dict
     # 5. Make the assets
 
     for band in range(refl_array.shape[2]):
-        band_name =  'Band_' + str(band+1).zfill(3) + '.tif' # make into e.g. 001 or 013 instead of 1 or 13 etc.
+        band_name =  'Band_' + str(band+1).zfill(3) # make into e.g. 001 or 013 instead of 1 or 13 etc.
         file_name = filename_prefix + '_' + 'band_' + str(band+1).zfill(3) + '.tif' # UPDATE FILE NAME
         #filename_prefix
         #print('creating asset for ' + band_name) # change to logging
@@ -808,7 +808,16 @@ def metadata2geojsonSTAC(refl_array, wavelength_array, FWHM_array, metadata_dict
     )
 
     # 7. Add the thumbnail asset
-
+    item.add_asset(
+                    key = filename_prefix+'_thumbnail',
+                    asset = pystac.Asset(
+                        title = 'Thumbnail',
+                        #href = os.path.join(img_path, file_name),
+                        href = filename_prefix+'_thumbnail',
+                        media_type=pystac.MediaType.PNG,
+                        roles = ["overview"]
+                    )
+    )
 
 
 
@@ -870,7 +879,7 @@ def pipeline(data_dir_path, output_data_path, desired_band_centres,
                 )
     """
     downSampler_logger.info('-'*25+"New Run"+'-'*25) # logging
-    downSampler_logger.info("pipeline function called: v_0.40") # logging
+    downSampler_logger.info("pipeline function called: v_0.90") # logging
 
     ## set up our desired bands and GSD parameters, as well as our input and output files directory
     # 0.505, 0.526, 0.544, 0.565, 0.586, 0.606, 0.626, 0.646,  0.665, 0.682, 0.699, 0.715, 0.730, 0.745, 0.762, 0.779, 0.787, 0.804

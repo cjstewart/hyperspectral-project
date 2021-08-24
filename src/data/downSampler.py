@@ -629,8 +629,6 @@ def metadata2geojsonSTAC(refl_array, wavelength_array, FWHM_array, metadata_dict
 
     """
     downSampler_logger.info("metadata2geojsonSTAC function called") # logging
-    # file_path = Path(r"..\data\Skywatch\catalog")
-    # file_path
 
     # create the catalog
     catalog = pystac.Catalog(id='catalog', description='Simulated satellite data catalog.')
@@ -639,8 +637,9 @@ def metadata2geojsonSTAC(refl_array, wavelength_array, FWHM_array, metadata_dict
     # ------------------------------------------------------------------------------------
 
     # 1. lon/lat coordinates
-    utm_crs = CRS.from_epsg(metadata_dict['EPSG Code'].item().decode('UTF-8')) # UTm coordinate system
-    latlon_crs = CRS.from_epsg('4326') # lat/lon coordiante system
+    epsg_code = metadata_dict['EPSG Code'].item().decode('UTF-8')
+    utm_crs = CRS.from_epsg(epsg_code) # UTm coordinate system
+    latlon_crs = CRS.from_epsg('4326') # lat/lon coordinate system
 
     coords_utm = [] # input UTM coordinates
     coords_utm.append((metadata_dict['spatial extent'][0],metadata_dict['spatial extent'][2]))
@@ -672,7 +671,6 @@ def metadata2geojsonSTAC(refl_array, wavelength_array, FWHM_array, metadata_dict
                         [bounds_right, bounds_bottom]
                     ]))
     # --------------------------------------------------------------------------------------
-
 
     # 2. Add the main STAC item
     item = pystac.Item(id=filename_prefix,
@@ -711,7 +709,8 @@ def metadata2geojsonSTAC(refl_array, wavelength_array, FWHM_array, metadata_dict
                      stac_extensions = [
                         "https://stac-extensions.github.io/eo/v1.0.0/schema.json",
                         "https://stac-extensions.github.io/view/v1.0.0/schema.json",
-                        "https://stac-extensions.github.io/sat/v1.0.0/schema.json"
+                        "https://stac-extensions.github.io/sat/v1.0.0/schema.json",
+                        "https://stac-extensions.github.io/projection/v1.0.0/schema.json"
                     ]
                       )
 
@@ -720,7 +719,7 @@ def metadata2geojsonSTAC(refl_array, wavelength_array, FWHM_array, metadata_dict
     # ------------------------------------------------------------------------------
     # 3. Set extension parameters
     item_ext = ViewExtension.ext(item)
-    # view parameters - no data yet
+    # 3.1 - view parameters - no data yet
     item_ext.sun_azimuth = -9999
     item_ext.sun_elevation = -9999
     item_ext.off_nadir = -9999
@@ -728,16 +727,25 @@ def metadata2geojsonSTAC(refl_array, wavelength_array, FWHM_array, metadata_dict
     item_ext.azimuth = -9999
     #item.ext.view.azimuth = -9999
 
-    # sat parameters
+    # 3.2 - sat parameters
     #item.ext.sat.orbit_state = "descending"
     item_ext = SatExtension.ext(item)
     #item_ext.orbit_state = "descending"
     #item_ext.relative_orbit = 9999
     #item.ext.sat.relative_orbit = 9999
 
-    # eo parameters
+    # 3.3 - eo parameters
     item_ext = EOExtension.ext(item)
     item_ext.cloud_cover = -9999
+
+
+    # 3.4 - proj parameters
+    item_ext = ProjectionExtension.ext(item)
+    try:
+        item_ext.epsg = int(epsg_code)
+    except ValueError:
+        item_ext.epsg = None # non-valid epsg code!
+    item_ext.shape = [refl_array.shape[1], refl_array.shape[0]] # raster shape in Y, X
 
     # -----------------------------------------------------------------------------------
     # 4. Create bands info on EO
@@ -769,16 +777,14 @@ def metadata2geojsonSTAC(refl_array, wavelength_array, FWHM_array, metadata_dict
                     #raster_height = refl_array.shape[1]
                    ))
 
-    #item.ext.eo.apply(bands=img_bands) # another way to set
-    item_ext.apply(bands=img_bands)
+    item_ext.bands=img_bands
 
     # -----------------------------------------------------------------------------------
     # 5. Make the assets
 
     for band in range(refl_array.shape[2]):
         band_name =  'Band_' + str(band+1).zfill(3) # make into e.g. 001 or 013 instead of 1 or 13 etc.
-        file_name = filename_prefix + '_' + 'band_' + str(band+1).zfill(3) + '.tif' # UPDATE FILE NAME
-        #filename_prefix
+        file_name = filename_prefix + '_' + 'band_' + str(band+1).zfill(3) + '.tif'
         #print('creating asset for ' + band_name) # change to logging
         #downSampler_logger.debug('creating asset for ' + band_name) # logging
 
@@ -844,6 +850,7 @@ def metadata2geojsonSTAC(refl_array, wavelength_array, FWHM_array, metadata_dict
     # rename the metadata file
     os.rename(os.path.join(file_path, filename_prefix, filename_prefix+".json"),os.path.join(file_path, filename_prefix, filename_prefix+"_metadata.json"))
     print("Metadata file generated")
+
 
 # ----------------------------------------------------------------------------------------------------------------------------------------
 

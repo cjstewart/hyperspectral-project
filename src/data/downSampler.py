@@ -10,6 +10,8 @@ from pystac.extensions.eo import EOExtension
 from pystac.extensions.eo import Band
 from pystac.extensions.view import ViewExtension
 from pystac.extensions.sat import SatExtension
+from pystac.extensions.eo import EOExtension
+from pystac.extensions.projection import ProjectionExtension
 
 # plotting
 import matplotlib as mpl
@@ -959,10 +961,9 @@ def pipeline(data_dir_path, output_data_path, desired_band_centres,
             filename_prefix = 'WYVERN_DS_'+ time_string +'_'+ file_name[9:13] + rand_string(7).lower()
             downSampler_logger.debug("Generating filename prefix: "+filename_prefix)  # logging
 
-
             # Parent Directory path
             parent_dir = os.path.join(output_data_path, "catalog")
-            # parent_dir = "../data/pipeline_output/catalog" # change this in production pipeline # change this in production pipeline
+            # parent_dir = "../data/pipeline_output/catalog" # change this in production pipeline
             # make directory
             if not os.path.isdir(parent_dir):
                 try:

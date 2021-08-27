@@ -969,9 +969,9 @@ def pipeline(data_dir_path, output_data_path, desired_band_centres,
                 try:
                     os.makedirs(parent_dir, exist_ok=True)
                 except OSError:
-                    print(">>>>>> Creation of the directory {} failed".format(output_dir))
+                    print(">>>>>> Creation of the directory {} failed".format(parent_dir))
                 else:
-                    print(">>>>>> Successfully created the directory {}".format(output_dir))
+                    print(">>>>>> Successfully created the directory {}".format(parent_dir))
                     #downSampler_logger.debug(">>>>>> Successfully created the directory {}".format(output_dir))  # logging
 
             # define some band names

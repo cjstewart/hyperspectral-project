@@ -6,7 +6,12 @@ import h5py
 from PIL import Image
 import json
 import pystac
+from pystac.extensions.eo import EOExtension
 from pystac.extensions.eo import Band
+from pystac.extensions.view import ViewExtension
+from pystac.extensions.sat import SatExtension
+from pystac.extensions.eo import EOExtension
+from pystac.extensions.projection import ProjectionExtension
 
 # plotting
 import matplotlib as mpl
@@ -626,8 +631,6 @@ def metadata2geojsonSTAC(refl_array, wavelength_array, FWHM_array, metadata_dict
 
     """
     downSampler_logger.info("metadata2geojsonSTAC function called") # logging
-    # file_path = Path(r"..\data\Skywatch\catalog")
-    # file_path
 
     # create the catalog
     catalog = pystac.Catalog(id='catalog', description='Simulated satellite data catalog.')
@@ -636,8 +639,9 @@ def metadata2geojsonSTAC(refl_array, wavelength_array, FWHM_array, metadata_dict
     # ------------------------------------------------------------------------------------
 
     # 1. lon/lat coordinates
-    utm_crs = CRS.from_epsg(metadata_dict['EPSG Code'].item().decode('UTF-8')) # UTm coordinate system
-    latlon_crs = CRS.from_epsg('4326') # lat/lon coordiante system
+    epsg_code = metadata_dict['EPSG Code'].item().decode('UTF-8')
+    utm_crs = CRS.from_epsg(epsg_code) # UTm coordinate system
+    latlon_crs = CRS.from_epsg('4326') # lat/lon coordinate system
 
     coords_utm = [] # input UTM coordinates
     coords_utm.append((metadata_dict['spatial extent'][0],metadata_dict['spatial extent'][2]))
@@ -669,7 +673,6 @@ def metadata2geojsonSTAC(refl_array, wavelength_array, FWHM_array, metadata_dict
                         [bounds_right, bounds_bottom]
                     ]))
     # --------------------------------------------------------------------------------------
-
 
     # 2. Add the main STAC item
     item = pystac.Item(id=filename_prefix,
@@ -705,27 +708,46 @@ def metadata2geojsonSTAC(refl_array, wavelength_array, FWHM_array, metadata_dict
                                 "sat:orbit_state": "descending",
                                 "sat:relative_orbit": 1,
                      },
-                     stac_extensions = [pystac.Extensions.EO, pystac.Extensions.VIEW, pystac.Extensions.SAT] # add these in later: view & eo
+                     stac_extensions = [
+                        "https://stac-extensions.github.io/eo/v1.0.0/schema.json",
+                        "https://stac-extensions.github.io/view/v1.0.0/schema.json",
+                        "https://stac-extensions.github.io/sat/v1.0.0/schema.json",
+                        "https://stac-extensions.github.io/projection/v1.0.0/schema.json"
+                    ]
                       )
 
     catalog.add_item(item)
 
     # ------------------------------------------------------------------------------
     # 3. Set extension parameters
+    item_ext = ViewExtension.ext(item)
+    # 3.1 - view parameters - no data yet
+    item_ext.sun_azimuth = -9999
+    item_ext.sun_elevation = -9999
+    item_ext.off_nadir = -9999
+    item_ext.incidence_angle = -9999
+    item_ext.azimuth = -9999
+    #item.ext.view.azimuth = -9999
 
-    # view parameters - no data yet
-    item.ext.view.sun_azimuth = -9999
-    item.ext.view.sun_elevation = -9999
-    item.ext.view.off_nadir = -9999
-    item.ext.view.incidence_angle = -9999
-    item.ext.view.azimuth = -9999
-
-    # sat parameters
+    # 3.2 - sat parameters
     #item.ext.sat.orbit_state = "descending"
-    item.ext.sat.relative_orbit = 9999
+    item_ext = SatExtension.ext(item)
+    #item_ext.orbit_state = "descending"
+    #item_ext.relative_orbit = 9999
+    #item.ext.sat.relative_orbit = 9999
 
-    # eo parameters
-    item.ext.eo.cloud_cover = -9999
+    # 3.3 - eo parameters
+    item_ext = EOExtension.ext(item)
+    item_ext.cloud_cover = -9999
+
+
+    # 3.4 - proj parameters
+    item_ext = ProjectionExtension.ext(item)
+    try:
+        item_ext.epsg = int(epsg_code)
+    except ValueError:
+        item_ext.epsg = None # non-valid epsg code!
+    item_ext.shape = [refl_array.shape[1], refl_array.shape[0]] # raster shape in Y, X
 
     # -----------------------------------------------------------------------------------
     # 4. Create bands info on EO
@@ -757,16 +779,14 @@ def metadata2geojsonSTAC(refl_array, wavelength_array, FWHM_array, metadata_dict
                     #raster_height = refl_array.shape[1]
                    ))
 
-    #item.ext.eo.apply(bands=img_bands) # another way to set
-    item.ext.eo.set_bands(img_bands)
+    item_ext.bands=img_bands
 
     # -----------------------------------------------------------------------------------
     # 5. Make the assets
 
     for band in range(refl_array.shape[2]):
-        band_name =  'Band_' + str(band+1).zfill(3) + '.tif' # make into e.g. 001 or 013 instead of 1 or 13 etc.
-        file_name = filename_prefix + '_' + 'band_' + str(band+1).zfill(3) + '.tif' # UPDATE FILE NAME
-        #filename_prefix
+        band_name =  'Band_' + str(band+1).zfill(3) # make into e.g. 001 or 013 instead of 1 or 13 etc.
+        file_name = filename_prefix + '_' + 'band_' + str(band+1).zfill(3) + '.tif'
         #print('creating asset for ' + band_name) # change to logging
         #downSampler_logger.debug('creating asset for ' + band_name) # logging
 
@@ -796,7 +816,16 @@ def metadata2geojsonSTAC(refl_array, wavelength_array, FWHM_array, metadata_dict
     )
 
     # 7. Add the thumbnail asset
-
+    item.add_asset(
+                    key = filename_prefix+'_thumbnail',
+                    asset = pystac.Asset(
+                        title = 'Thumbnail',
+                        #href = os.path.join(img_path, file_name),
+                        href = filename_prefix+'_thumbnail',
+                        media_type=pystac.MediaType.PNG,
+                        roles = ["overview"]
+                    )
+    )
 
 
 
@@ -823,6 +852,7 @@ def metadata2geojsonSTAC(refl_array, wavelength_array, FWHM_array, metadata_dict
     # rename the metadata file
     os.rename(os.path.join(file_path, filename_prefix, filename_prefix+".json"),os.path.join(file_path, filename_prefix, filename_prefix+"_metadata.json"))
     print("Metadata file generated")
+
 
 # ----------------------------------------------------------------------------------------------------------------------------------------
 
@@ -858,7 +888,7 @@ def pipeline(data_dir_path, output_data_path, desired_band_centres,
                 )
     """
     downSampler_logger.info('-'*25+"New Run"+'-'*25) # logging
-    downSampler_logger.info("pipeline function called: v_0.40") # logging
+    downSampler_logger.info("pipeline function called: v_0.90") # logging
 
     ## set up our desired bands and GSD parameters, as well as our input and output files directory
     # 0.505, 0.526, 0.544, 0.565, 0.586, 0.606, 0.626, 0.646,  0.665, 0.682, 0.699, 0.715, 0.730, 0.745, 0.762, 0.779, 0.787, 0.804
@@ -931,18 +961,17 @@ def pipeline(data_dir_path, output_data_path, desired_band_centres,
             filename_prefix = 'WYVERN_DS_'+ time_string +'_'+ file_name[9:13] + rand_string(7).lower()
             downSampler_logger.debug("Generating filename prefix: "+filename_prefix)  # logging
 
-
             # Parent Directory path
             parent_dir = os.path.join(output_data_path, "catalog")
-            # parent_dir = "../data/pipeline_output/catalog" # change this in production pipeline # change this in production pipeline
+            # parent_dir = "../data/pipeline_output/catalog" # change this in production pipeline
             # make directory
             if not os.path.isdir(parent_dir):
                 try:
                     os.makedirs(parent_dir, exist_ok=True)
                 except OSError:
-                    print(">>>>>> Creation of the directory {} failed".format(output_dir))
+                    print(">>>>>> Creation of the directory {} failed".format(parent_dir))
                 else:
-                    print(">>>>>> Successfully created the directory {}".format(output_dir))
+                    print(">>>>>> Successfully created the directory {}".format(parent_dir))
                     #downSampler_logger.debug(">>>>>> Successfully created the directory {}".format(output_dir))  # logging
 
             # define some band names
@@ -954,14 +983,23 @@ def pipeline(data_dir_path, output_data_path, desired_band_centres,
 
             # gnerate metadata file
             print('Generating STAC metadata file...')
-            metadata2geojsonSTAC(resamp_refl_array, desired_band_centres, rebanded_FWHM_array, resamp_metadata_dict, common_band_names, timestamp, start_timestamp, end_timestamp, parent_dir, filename_prefix)
+            metadata2geojsonSTAC(resamp_refl_array, desired_band_centres,
+                                rebanded_FWHM_array, resamp_metadata_dict,
+                                common_band_names, timestamp, start_timestamp,
+                                end_timestamp, parent_dir, filename_prefix
+                                )
             # refl_array, metadata_dict, wavelength_array, FWHM_array, common_band_names, timestamp, start_timestamp, end_timestamp, file_path, filename_prefix="WYVERN_DS"
             print('STAC metadata file generated!')
 
             print('Generating geotiff image files...')
             # generate geotiff images
             output_dir = os.path.join(parent_dir, filename_prefix) # save geotiffs directly into the new directory that the STAC metadata file made
-            array2gtiff_raster(resamp_refl_array, desired_band_centres, rebanded_FWHM_array, resamp_metadata_dict, 1, 1, output_dir, filename_prefix)
+            array2gtiff_raster(resamp_refl_array, desired_band_centres,
+                                rebanded_FWHM_array, resamp_metadata_dict,
+                                resamp_metadata_dict['Spatial_Resolution_X_Y'][0], # pixel width
+                                resamp_metadata_dict['Spatial_Resolution_X_Y'][1], # pixel height
+                                output_dir, filename_prefix
+                                )
             # refl_array, wavelength_array, FWHM_array, metadata_dict, pixelWidth, pixelHeight, file_path, filename_prefix="WYVERN_DS"
             print('Geotiff image files generated!')
 
